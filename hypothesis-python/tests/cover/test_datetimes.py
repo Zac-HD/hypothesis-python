@@ -88,21 +88,6 @@ def test_bordering_on_a_leap_year():
     assert x.year == 2004
 
 
-def test_DatetimeStrategy_draw_may_fail():
-    def is_failure_inducing(b):
-        try:
-            return strat._attempt_one_draw(ConjectureData.for_buffer(b)) is None
-        except StopTest:
-            return False
-
-    strat = DatetimeStrategy(dt.datetime.min, dt.datetime.max, none())
-    failure_inducing = minimal(binary(), is_failure_inducing, timeout_after=30)
-    data = ConjectureData.for_buffer(failure_inducing * 100)
-    with pytest.raises(StopTest):
-        data.draw(strat)
-    assert data.status == Status.INVALID
-
-
 def test_can_find_after_the_year_2000():
     assert minimal(dates(), lambda x: x.year > 2000).year == 2001
 
