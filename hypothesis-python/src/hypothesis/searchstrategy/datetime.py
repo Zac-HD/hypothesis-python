@@ -18,9 +18,15 @@
 from __future__ import absolute_import, division, print_function
 
 import datetime as dt
+import enum
 
 from hypothesis.internal.conjecture import utils
 from hypothesis.searchstrategy.strategies import SearchStrategy
+
+try:
+    import dateutil
+except ImportError:
+    dateutil = None
 
 __all__ = ["DateStrategy", "DatetimeStrategy", "TimedeltaStrategy"]
 
@@ -113,3 +119,78 @@ class TimedeltaStrategy(SearchStrategy):
             low_bound = low_bound and val == low
             high_bound = high_bound and val == high
         return dt.timedelta(**result)
+
+
+def transition_between(start, end):
+    assert isinstance(start, dt.datetime)
+    assert isinstance(end, dt.datetime)
+    assert start <= end
+    return (
+        start.utcoffset() != end.utcoffset()
+        or start.tzname() != end.tzname()
+        or start.dst() != end.dst()
+    )
+
+
+HOUR = dt.timedelta(hours=1)
+MINUTE = dt.timedelta(minutes=1)
+SECOND = dt.timedelta(seconds=1)
+
+
+class Weirdness(enum.Flag):
+    nothing = 0
+
+    ambiguous = enum.auto()
+    imaginary = enum.auto()
+    leap_second = enum.auto()
+
+    tzname_not_len_three = enum.auto()
+    tzname_not_alpha = enum.auto()
+    tzname_not_ascii = enum.auto()
+
+    utcoffset_non_integer_hours = enum.auto()
+    utcoffset_non_integer_minutes = enum.auto()
+    utcoffset_non_integer_seconds = enum.auto()
+
+    dst_non_integer_hours = enum.auto()
+    dst_non_integer_minutes = enum.auto()
+    dst_non_integer_seconds = enum.auto()
+
+    @classmethod
+    def from_datetime(cls, instance):
+        assert isinstance(instance, dt.datetime)
+        self = cls.nothing
+
+        if dateutil is not None and dateutil.tz.datetime_ambiguous(instance):
+            self |= cls.ambiguous
+        if dateutil is not None and not dateutil.tz.datetime_exists(instance):
+            self |= cls.imaginary
+        if instance.second >= 60:
+            self |= cls.leap_second
+
+        tzname = instance.tzname()
+        if tzname is not None:
+            if len(tzname) != 3:
+                self |= cls.tzname_not_len_three
+            if not tzname.isalpha():
+                self |= cls.tzname_not_alpha
+            if not tzname.isascii():
+                self |= cls.tzname_not_ascii
+
+        utcoffset = instance.utcoffset()
+        if (utcoffset or HOUR) % HOUR:
+            self |= cls.utcoffset_non_integer_hours
+            if utcoffset % MINUTE:
+                self |= cls.utcoffset_non_integer_minutes
+                if utcoffset % SECOND:
+                    self |= cls.utcoffset_non_integer_seconds
+
+        dst = instance.dst()
+        if (dst or HOUR) % HOUR:
+            self |= cls.dst_non_integer_hours
+            if dst % MINUTE:
+                self |= cls.dst_non_integer_minutes
+                if dst % SECOND:
+                    self |= cls.dst_non_integer_seconds
+
+        return self
