@@ -312,7 +312,10 @@ if numpy or CAN_PACK_HALF_FLOAT:
 
 
 @pytest.mark.parametrize("nonfloat", [st.nothing(), st.none()])
-@given(data=st.data(), width=st.sampled_from(WIDTHS))
+@pytest.mark.parametrize(
+    "width", [64, 32, 16] if numpy or CAN_PACK_HALF_FLOAT else [64, 32]
+)
+@given(data=st.data())
 def test_fuzzing_floats_bounds(data, width, nonfloat):
     lo = data.draw(nonfloat | st.floats(allow_nan=False, width=width), label="lo")
     hi = data.draw(nonfloat | st.floats(allow_nan=False, width=width), label="hi")
