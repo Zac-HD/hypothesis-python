@@ -148,11 +148,7 @@ class FloatStrategy(SearchStrategy):
 
 
 class FixedBoundedFloatStrategy(SearchStrategy):
-    """A strategy for floats distributed between two endpoints.
-
-    The conditional distribution tries to produce values clustered
-    closer to one of the ends.
-    """
+    """A strategy for floats distributed between two endpoints."""
 
     def __init__(self, lower_bound, upper_bound, width):
         SearchStrategy.__init__(self)
@@ -173,13 +169,24 @@ class FixedBoundedFloatStrategy(SearchStrategy):
         )
 
     def do_draw(self, data):
-        f = self.lower_bound + (
-            self.upper_bound - self.lower_bound
-        ) * d.fractional_float(data)
+        result = flt.lex_to_float(data.draw_bits(64))
+        assume(not math.isinf(result) and not math.isnan(result))
+        assume(self.lower_bound == 0 or 0 < result)
+
+        # Scale our finite float into the allowed range.
+        while result < self.lower_bound:
+            result *= 2
+        while self.upper_bound < result:
+            # Ideally we'd bitmask the lexical representation (black magic) instead,
+            # because dividing like this means we don't shrink to integral floats :-(
+            result /= 2
+
+        assert result <= self.upper_bound
+        assert self.lower_bound < 2 * result
+
+        # TODO: scale into this range instead of rejection sampling?
+        assume(self.lower_bound <= result <= self.upper_bound)
+
         if self.width < 64:
-            try:
-                f = float_of(f, self.width)
-            except OverflowError:  # pragma: no cover
-                reject()
-        assume(self.lower_bound <= f <= self.upper_bound)
-        return f
+            return float_of(result, width=self.width)
+        return result
