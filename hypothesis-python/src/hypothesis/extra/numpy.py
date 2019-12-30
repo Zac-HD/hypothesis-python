@@ -155,6 +155,18 @@ class ArrayStrategy(SearchStrategy):
         self.element_strategy = element_strategy
         self.unique = unique
 
+    def __hash__(self):
+        return hash(
+            (
+                self.__class__,
+                self.shape,
+                self.fill,
+                self.dtype,
+                self.element_strategy,
+                self.unique,
+            )
+        )
+
     def set_element(self, data, result, idx, strategy=None):
         strategy = strategy or self.element_strategy
         val = data.draw(strategy)
@@ -884,6 +896,21 @@ class MutuallyBroadcastableShapesStrategy(SearchStrategy):
 
         self.size_one_allowed = self.min_side <= 1 <= self.max_side
 
+    def __hash__(self):
+        return hash(
+            (
+                self.__class__,
+                self.base_shape,
+                self.side_strat,
+                self.num_shapes,
+                self.signature,
+                self.min_dims,
+                self.max_dims,
+                self.min_side,
+                self.max_side,
+            )
+        )
+
     def do_draw(self, data):
         # We don't usually have a gufunc signature; do the common case first & fast.
         if self.signature is None:
@@ -1269,6 +1296,18 @@ class BasicIndexStrategy(SearchStrategy):
         self.max_dims = max_dims
         self.allow_ellipsis = allow_ellipsis
         self.allow_newaxis = allow_newaxis
+
+    def __hash__(self):
+        return hash(
+            (
+                self.__class__,
+                self.shape,
+                self.min_dims,
+                self.max_dims,
+                self.allow_ellipsis,
+                self.allow_newaxis,
+            )
+        )
 
     def do_draw(self, data):
         # General plan: determine the actual selection up front with a straightforward

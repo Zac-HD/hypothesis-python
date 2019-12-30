@@ -45,6 +45,9 @@ class DatetimeStrategy(SearchStrategy):
         self.max_dt = max_value
         self.tz_strat = timezones_strat
 
+    def __hash__(self):
+        return hash((self.__class__, self.min_dt, self.max_dt, self.tz_strat))
+
     def do_draw(self, data):
         result = {}
         cap_low, cap_high = True, True
@@ -82,6 +85,9 @@ class DateStrategy(SearchStrategy):
         self.days_apart = (max_value - min_value).days
         self.center = (dt.date(2000, 1, 1) - min_value).days
 
+    def __hash__(self):
+        return hash((self.__class__, self.min_value, self.days_apart))
+
     def do_draw(self, data):
         days = utils.integer_range(data, 0, self.days_apart, center=self.center)
         return self.min_value + dt.timedelta(days=days)
@@ -94,6 +100,9 @@ class TimedeltaStrategy(SearchStrategy):
         assert min_value < max_value
         self.min_value = min_value
         self.max_value = max_value
+
+    def __hash__(self):
+        return hash((self.__class__, self.min_value, self.max_value))
 
     def do_draw(self, data):
         result = {}

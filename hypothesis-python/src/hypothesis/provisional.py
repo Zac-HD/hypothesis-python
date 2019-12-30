@@ -110,6 +110,9 @@ class DomainNameStrategy(SearchStrategy):
                 maximum_center_character_pattern_repetitions,
             )
 
+    def __hash__(self):
+        return hash((self.__class__, self.max_length, self.max_element_length))
+
     def do_draw(self, data):
         # 1 - Select a valid top-level domain (TLD) name
         # 2 - Check that the number of characters in our selected TLD won't

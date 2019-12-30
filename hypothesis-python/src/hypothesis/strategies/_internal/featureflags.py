@@ -123,7 +123,13 @@ class FeatureFlags(object):
                 disabled.append(k)
         return "FeatureFlags(enabled=%r, disabled=%r)" % (enabled, disabled)
 
+    def __hash__(self):
+        return hash(self.__class__)
+
 
 class FeatureStrategy(SearchStrategy):
     def do_draw(self, data):
         return FeatureFlags(data)
+
+    def __hash__(self):
+        return hash(self.__class__)

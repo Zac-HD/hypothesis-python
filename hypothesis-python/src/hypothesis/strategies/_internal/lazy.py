@@ -84,6 +84,13 @@ class LazyStrategy(SearchStrategy):
         self.__args = args
         self.__kwargs = kwargs
 
+    def __hash__(self):
+        kwargs = tuple(sorted(self.__kwargs.items(), key=lambda kv: kv[0]))
+        try:
+            return hash((self.__class__, self.function, self.__args, kwargs))
+        except TypeError:
+            return object.__hash__(self)
+
     @property
     def supports_find(self):
         return self.wrapped_strategy.supports_find

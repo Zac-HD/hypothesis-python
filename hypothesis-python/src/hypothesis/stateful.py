@@ -324,6 +324,9 @@ class BundleReferenceStrategy(SearchStrategy):
         self.name = name
         self.consume = consume
 
+    def __hash__(self):
+        return hash((self.__class__, self.name, self.consume))
+
     def do_draw(self, data):
         machine = data.draw(self_strategy)
         bundle = machine.bundle(self.name)
@@ -343,6 +346,9 @@ class Bundle(SearchStrategy):
     def __init__(self, name, consume=False):
         self.name = name
         self.__reference_strategy = BundleReferenceStrategy(name, consume)
+
+    def __hash__(self):
+        return hash((self.__class__, self.__reference_strategy))
 
     def do_draw(self, data):
         machine = data.draw(self_strategy)
@@ -675,6 +681,10 @@ class RuleStrategy(SearchStrategy):
             self.__class__.__name__,
             self.machine.__class__.__name__,
         )
+
+    def __hash__(self):
+        rules = tuple((r.targets, r.function, r.precondition) for r in self.rules)
+        return hash((self.__class__, self.machine, rules))
 
     def do_draw(self, data):
         if not any(self.is_valid(rule) for rule in self.rules):

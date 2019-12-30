@@ -36,3 +36,9 @@ def test_one_of_filtered(i):
 @given(st.one_of(st.just(100).flatmap(st.integers)))
 def test_one_of_flatmapped(i):
     assert i >= 100
+
+
+def test_one_of_deduplication():
+    strats = [st.complex_numbers(), st.complex_numbers()]
+    assert strats[0] is not strats[1]
+    assert len(st.one_of(strats).branches) == 1

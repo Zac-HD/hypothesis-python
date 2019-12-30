@@ -38,6 +38,9 @@ class TupleStrategy(SearchStrategy):
         SearchStrategy.__init__(self)
         self.element_strategies = tuple(strategies)
 
+    def __hash__(self):
+        return hash((self.__class__, self.element_strategies))
+
     def do_validate(self):
         for s in self.element_strategies:
             s.validate()
@@ -78,6 +81,11 @@ class ListStrategy(SearchStrategy):
             0.5 * (self.min_size + self.max_size),
         )
         self.element_strategy = elements
+
+    def __hash__(self):
+        return hash(
+            (self.__class__, self.element_strategy, self.min_size, self.max_size)
+        )
 
     def calc_label(self):
         return combine_labels(self.class_label, self.element_strategy.label)
@@ -135,6 +143,17 @@ class UniqueListStrategy(ListStrategy):
         super(UniqueListStrategy, self).__init__(elements, min_size, max_size)
         self.keys = keys
 
+    def __hash__(self):
+        return hash(
+            (
+                self.__class__,
+                self.element_strategy,
+                self.min_size,
+                self.max_size,
+                self.keys,
+            )
+        )
+
     def do_draw(self, data):
         if self.element_strategy.is_empty:
             assert self.min_size == 0
@@ -171,11 +190,7 @@ class UniqueListStrategy(ListStrategy):
         return result
 
 
-class UniqueSampledListStrategy(ListStrategy):
-    def __init__(self, elements, min_size, max_size, keys):
-        super(UniqueSampledListStrategy, self).__init__(elements, min_size, max_size)
-        self.keys = keys
-
+class UniqueSampledListStrategy(UniqueListStrategy):
     def do_draw(self, data):
         should_draw = cu.many(
             data,
@@ -257,6 +272,9 @@ class FixedAndOptionalKeysDictStrategy(SearchStrategy):
                 self.optional_keys = tuple(sorted(self.optional.keys()))
             except TypeError:
                 self.optional_keys = tuple(sorted(self.optional.keys(), key=repr))
+
+    def __hash__(self):
+        return hash((self.__class__, self.fixed, self.optional_keys))
 
     def calc_is_empty(self, recur):
         return recur(self.fixed)

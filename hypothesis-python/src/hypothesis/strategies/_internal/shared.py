@@ -37,6 +37,9 @@ class SharedStrategy(SearchStrategy):
         else:
             return "shared(%r)" % (self.base,)
 
+    def __hash__(self):
+        return hash((self.__class__, self.base, self.key))
+
     def do_draw(self, data):
         if not hasattr(data, SHARED_STRATEGY_ATTRIBUTE):
             setattr(data, SHARED_STRATEGY_ATTRIBUTE, {})

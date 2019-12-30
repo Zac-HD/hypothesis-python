@@ -245,6 +245,9 @@ class Nothing(SearchStrategy):
     def __repr__(self):
         return "nothing()"
 
+    def __hash__(self):
+        return hash(self.__class__)
+
     def map(self, f):
         return self
 
@@ -1215,6 +1218,9 @@ class RandomModule(SearchStrategy):
         cleanup(restore_all)
         return RandomSeeder(seed)
 
+    def __hash__(self):
+        return hash(self.__class__)
+
 
 @cacheable
 @defines_strategy
@@ -1788,6 +1794,9 @@ class PermutationStrategy(SearchStrategy):
             result[i], result[j] = result[j], result[i]
         return result
 
+    def __hash__(self):
+        return hash((self.__class__, tuple(self.values)))
+
 
 @defines_strategy
 def permutations(values):
@@ -1924,17 +1933,23 @@ def timedeltas(min_value=dt.timedelta.min, max_value=dt.timedelta.max):
 
 
 class CompositeStrategy(SearchStrategy):
-    def __init__(self, definition, label, args, kwargs):
+    def __init__(self, definition, args, kwargs):
         self.definition = definition
-        self.__label = label
         self.args = args
         self.kwargs = kwargs
+
+    def __hash__(self):
+        kwargs = tuple(sorted(self.kwargs.items(), key=repr))
+        try:
+            return hash((self.__class__, self.definition, self.args, kwargs))
+        except TypeError:
+            return object.__hash__(self)
 
     def do_draw(self, data):
         return self.definition(data.draw, *self.args, **self.kwargs)
 
     def calc_label(self):
-        return self.__label
+        return calc_label_from_cls(self.definition)
 
 
 @cacheable
@@ -1967,12 +1982,10 @@ def composite(f):
     }
     new_argspec = argspec._replace(args=argspec.args[1:], annotations=annots)
 
-    label = calc_label_from_cls(f)
-
     @defines_strategy
     @define_function_signature(f.__name__, f.__doc__, new_argspec)
     def accept(*args, **kwargs):
-        return CompositeStrategy(f, label, args, kwargs)
+        return CompositeStrategy(f, args, kwargs)
 
     accept.__module__ = f.__module__
     return accept
@@ -2119,6 +2132,9 @@ class RunnerStrategy(SearchStrategy):
     def __init__(self, default):
         self.default = default
 
+    def __hash__(self):
+        return hash((self.__class__, self.default))
+
     def do_draw(self, data):
         runner = getattr(data, "hypothesis_runner", not_set)
         if runner is not_set:
@@ -2185,6 +2201,9 @@ class DataStrategy(SearchStrategy):
 
     def __repr__(self):
         return "data()"
+
+    def __hash__(self):
+        return hash(self.__class__)
 
     def map(self, f):
         self.__not_a_first_class_strategy("map")

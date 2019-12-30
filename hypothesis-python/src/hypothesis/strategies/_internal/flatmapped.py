@@ -39,6 +39,9 @@ class FlatMapStrategy(SearchStrategy):
             )
         return self._cached_repr
 
+    def __hash__(self):
+        return hash((self.__class__, self.flatmapped_strategy, self.expand))
+
     def do_draw(self, data):
         source = data.draw(self.flatmapped_strategy)
         expanded_source = self.expand(source)

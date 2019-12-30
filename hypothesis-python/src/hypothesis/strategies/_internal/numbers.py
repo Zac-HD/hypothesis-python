@@ -36,6 +36,9 @@ class WideRangeIntStrategy(SearchStrategy):
     def __repr__(self):
         return "WideRangeIntStrategy()"
 
+    def __hash__(self):
+        return hash(self.__class__)
+
     def do_draw(self, data):
         size = self.sizes[self.distribution.sample(data)]
         r = data.draw_bits(size)
@@ -57,6 +60,9 @@ class BoundedIntStrategy(SearchStrategy):
 
     def __repr__(self):
         return "BoundedIntStrategy(%d, %d)" % (self.start, self.end)
+
+    def __hash__(self):
+        return hash((self.__class__, self.start, self.end))
 
     def do_draw(self, data):
         return d.integer_range(data, self.start, self.end)
@@ -116,6 +122,9 @@ class FloatStrategy(SearchStrategy):
             self.__class__.__name__, self.allow_infinity, self.allow_nan, self.width
         )
 
+    def __hash__(self):
+        return hash((self.__class__, self.allow_infinity, self.allow_nan, self.width))
+
     def permitted(self, f):
         assert isinstance(f, float)
         if not self.allow_infinity and math.isinf(f):
@@ -171,6 +180,9 @@ class FixedBoundedFloatStrategy(SearchStrategy):
             self.upper_bound,
             self.width,
         )
+
+    def __hash__(self):
+        return hash((self.__class__, self.lower_bound, self.upper_bound, self.width))
 
     def do_draw(self, data):
         f = self.lower_bound + (

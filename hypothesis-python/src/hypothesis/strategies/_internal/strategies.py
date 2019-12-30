@@ -257,6 +257,9 @@ class SearchStrategy(Generic[Ex]):
     # Whether this strategy is suitable for holding onto in a cache.
     is_cacheable = recursive_property("is_cacheable", True)
 
+    def __eq__(self, other):
+        return type(self) == type(other) and hash(self) == hash(other)
+
     def calc_is_cacheable(self, recur):
         return True
 
@@ -466,6 +469,12 @@ class SampledFromStrategy(SearchStrategy):
         self.elements = cu.check_sample(elements, "sampled_from")
         assert self.elements
 
+    def __hash__(self):
+        try:
+            return hash((self.__class__, self.elements))
+        except TypeError:
+            return object.__hash__(self)
+
     def __repr__(self):
         return "sampled_from(%s)" % ", ".join(map(repr, self.elements))
 
@@ -563,6 +572,9 @@ class OneOfStrategy(SearchStrategy):
         self.__element_strategies = None
         self.__in_branches = False
 
+    def __hash__(self):
+        return hash((self.__class__, tuple(self.original_strategies)))
+
     def calc_is_empty(self, recur):
         return all(recur(e) for e in self.original_strategies)
 
@@ -581,14 +593,11 @@ class OneOfStrategy(SearchStrategy):
                 if not arg.is_empty:
                     strategies.extend([s for s in arg.branches if not s.is_empty])
             pruned = []
-            seen = set()
+            seen = {self}
             for s in strategies:
-                if s is self:
-                    continue
-                if s in seen:
-                    continue
-                seen.add(s)
-                pruned.append(s)
+                if s not in seen:
+                    seen.add(s)
+                    pruned.append(s)
             self.__element_strategies = pruned
         return self.__element_strategies
 
@@ -637,6 +646,9 @@ class MappedSearchStrategy(SearchStrategy):
         self.mapped_strategy = strategy
         if pack is not None:
             self.pack = pack
+
+    def __hash__(self):
+        return hash((self.__class__, self.mapped_strategy, self.pack))
 
     def calc_is_empty(self, recur):
         return recur(self.mapped_strategy)
@@ -704,6 +716,9 @@ class FilteredStrategy(SearchStrategy):
         assert not isinstance(self.filtered_strategy, FilteredStrategy)
 
         self.__condition = None
+
+    def __hash__(self):
+        return hash((self.__class__, self.filtered_strategy, self.flat_conditions))
 
     def calc_is_empty(self, recur):
         return recur(self.filtered_strategy)

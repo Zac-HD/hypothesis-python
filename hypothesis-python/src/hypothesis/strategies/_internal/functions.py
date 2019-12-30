@@ -31,6 +31,9 @@ class FunctionStrategy(SearchStrategy):
         self.like = like
         self.returns = returns
 
+    def __hash__(self):
+        return hash((self.__class__, self.like, self.returns))
+
     def calc_is_empty(self, recur):
         return recur(self.returns)
 

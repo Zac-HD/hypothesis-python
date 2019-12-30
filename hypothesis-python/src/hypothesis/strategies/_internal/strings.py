@@ -67,6 +67,9 @@ class OneCharStringStrategy(SearchStrategy):
         self.intervals = IntervalSet(intervals)
         self.zero_point = self.intervals.index_above(ord("0"))
 
+    def __hash__(self):
+        return hash((self.__class__, self.intervals, self.zero_point))
+
     def do_draw(self, data):
         i = integer_range(data, 0, len(self.intervals) - 1, center=self.zero_point)
         return hunichr(self.intervals[i])
@@ -105,6 +108,9 @@ class BinaryStringStrategy(MappedSearchStrategy):
 class FixedSizeBytes(SearchStrategy):
     def __init__(self, size):
         self.size = size
+
+    def __hash__(self):
+        return hash((self.__class__, self.size))
 
     def do_draw(self, data):
         return binary_type(data.draw_bytes(self.size))

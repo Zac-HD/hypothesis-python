@@ -39,6 +39,9 @@ class LimitedStrategy(SearchStrategy):
     def __repr__(self):
         return "LimitedStrategy(%r)" % (self.base_strategy,)
 
+    def __hash__(self):
+        return hash((self.__class__, self.base_strategy))
+
     def do_validate(self):
         self.base_strategy.validate()
 
@@ -80,6 +83,9 @@ class RecursiveStrategy(SearchStrategy):
                 self.max_leaves,
             )
         return self._cached_repr
+
+    def __hash__(self):
+        return hash((self.__class__, self.base, self.extend, self.max_leaves))
 
     def do_validate(self):
         if not isinstance(self.base, SearchStrategy):
