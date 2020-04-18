@@ -14,6 +14,7 @@
 # END HEADER
 
 import datetime as dt
+import functools
 from calendar import monthrange
 from typing import Optional
 
@@ -30,6 +31,7 @@ from hypothesis.strategies._internal.strategies import SearchStrategy
 
 DATENAMES = ("year", "month", "day")
 TIMENAMES = ("hour", "minute", "second", "microsecond")
+DRAW_NAIVE_DATETIME_PART = utils.calc_label_from_name("draw naive part of a datetime")
 
 
 def is_pytz_timezone(tz):
@@ -78,10 +80,105 @@ def datetime_does_not_exist(value):
     return value != roundtrip
 
 
-def draw_capped_multipart(data, min_value, max_value):
+def datetime_is_ambiguous(value):
+    # If the same value with fold=0 and fold=1 map to differnt UTC times...
+    if not hasattr(value, "fold"):
+        return False  # remove at Python 3.5 EOL
+    fold_0 = value.replace(fold=0).astimezone(dt.timezone.utc)
+    fold_1 = value.replace(fold=1).astimezone(dt.timezone.utc)
+    return fold_0 != fold_1
+
+
+def _leapsec(year, month):
+    day = {6: 30, 12: 31}[month]
+    return dt.datetime(year, month, day, 23, 59, 59, tzinfo=dt.timezone.utc)
+
+
+@functools.lru_cache()
+def get_leap_seconds():
+    # We should really get this from the OS or a package like pytz or dateutil,
+    # but since we'll want a hardcoded fallback regardless here goes.
+    # Data from https://en.wikipedia.org/wiki/Leap_second
+    leapsecs = (
+        _leapsec(1972, 6),
+        _leapsec(1972, 12),
+        _leapsec(1973, 12),
+        _leapsec(1974, 12),
+        _leapsec(1975, 12),
+        _leapsec(1976, 12),
+        _leapsec(1977, 12),
+        _leapsec(1978, 12),
+        _leapsec(1979, 12),
+        _leapsec(1981, 6),
+        _leapsec(1982, 6),
+        _leapsec(1983, 6),
+        _leapsec(1985, 6),
+        _leapsec(1987, 12),
+        _leapsec(1989, 12),
+        _leapsec(1990, 12),
+        _leapsec(1992, 6),
+        _leapsec(1993, 6),
+        _leapsec(1994, 6),
+        _leapsec(1995, 12),
+        _leapsec(1997, 6),
+        _leapsec(1998, 12),
+        _leapsec(2005, 12),
+        _leapsec(2008, 12),
+        _leapsec(2012, 6),
+        _leapsec(2015, 6),
+        _leapsec(2016, 12),
+    )
+    # TODO: get the data at runtime, compare to hardcoded list in tests.
+    assert leapsecs == tuple(sorted(leapsecs))
+    assert len(leapsecs) == 27
+    return leapsecs
+
+
+def datetime_in_leap_smear(value):
+    # We assume the mostly-consensus smear period of 24 hours centered on the leap
+    # second, for simplicity.  Because we anticipate that most bugs derive from
+    # comparison of durations spanning a leap second, this shouldn't make much
+    # difference (empirical studies to improve on this intuition are welcome).
+    #
+    # TODO: get leap second list from somewhere.
+    return any(
+        abs(value - leap) < dt.timedelta(hours=12) for leap in get_leap_seconds()
+    )
+
+
+def datetime_is_nasty(value):
+    return (
+        datetime_does_not_exist(value)
+        or datetime_is_ambiguous(value)
+        or datetime_in_leap_smear(value)
+    )
+
+
+def get_nasty_bounds(lo, mid, hi):
+    # If (lo, mid) or (mid, hi) certainly contain a nasty datetime, return the
+    # interval which spans 2000-01-01; else return (None, None)
+    ordered = [(lo, mid), (mid, hi)]
+    if mid.replace(tzinfo=None) <= dt.datetime(2000, 1, 1):
+        ordered = ordered[::-1]
+    # You might think that, because the leap smears are 24hrs and imaginary or
+    # ambiguous times are typically only one hour the leap smears would be much
+    # more likely - no so!  By the last few steps of our binary search we usually
+    # have only only option, and shorter intervals just take a few more steps.
+    for min_, max_ in ordered:
+        if mid.tzinfo.utcoffset(min_) != mid.tzinfo.utcoffset(max_) or any(
+            min_.astimezone(dt.timezone.utc) < leap - dt.timedelta(hours=12)
+            and leap + dt.timedelta(hours=12) < max_.astimezone(dt.timezone.utc)
+            for leap in get_leap_seconds()
+        ):
+            return (min_, max_)
+    return (None, None)
+
+
+def draw_capped_multipart(data, min_value, max_value, forced=None):
     assert isinstance(min_value, (dt.date, dt.time, dt.datetime))
     assert type(min_value) == type(max_value)
     assert min_value <= max_value
+    forced = forced or {}
     result = {}
     cap_low, cap_high = True, True
     duration_names_by_type = {
@@ -95,9 +192,9 @@ def draw_capped_multipart(data, min_value, max_value):
         if name == "day" and not cap_high:
             _, high = monthrange(**result)
         if name == "year":
-            val = utils.integer_range(data, low, high, 2000)
+            val = utils.integer_range(data, low, high, 2000, forced=forced.get("year"))
         else:
-            val = utils.integer_range(data, low, high)
+            val = utils.integer_range(data, low, high, forced=forced.get(name))
         result[name] = val
         cap_low = cap_low and val == low
         cap_high = cap_high and val == high
@@ -128,26 +225,65 @@ class DatetimeStrategy(SearchStrategy):
     def do_draw(self, data):
         # We start by drawing a timezone, and an initial datetime.
         tz = data.draw(self.tz_strat)
-        result = self.draw_naive_datetime_and_combine(data, tz)
 
-        # TODO: with some probability, systematically search for one of
-        #   - an imaginary time (if allowed),
-        #   - a time within 24hrs of a leap second (if there any are within bounds),
-        #   - other subtle, little-known, or nasty issues as described in
-        #     https://github.com/HypothesisWorks/hypothesis/issues/69
+        if tz is None:
+            return self.draw_naive_datetime_and_combine(
+                data, tz, self.min_value, self.max_value
+            )
+
+        # One-in-four times, we try a more complicated draw with the goal of finding
+        # an ambiguous or imaginary time, or a time with a "leap smear"
+        # See https://developers.google.com/time/smear for details on leap smear.
+        try_to_be_nasty = data.draw_bits(2) == 1
+
+        data.start_example(DRAW_NAIVE_DATETIME_PART)
+        result = self.draw_naive_datetime_and_combine(
+            data,
+            tz,
+            self.min_value.replace(tzinfo=tz),
+            self.max_value.replace(tzinfo=tz),
+        )
+        lo, hi = get_nasty_bounds(
+            self.min_value.replace(tzinfo=tz), result, self.max_value.replace(tzinfo=tz)
+        )
+
+        if (not try_to_be_nasty) or datetime_is_nasty(result) or lo is None:
+            # Either (a) we're not being nasty, (b) we got very lucky, or
+            # (c) we're replaying or mutating based on the loop below.
+            data.stop_example()
+        else:
+            data.stop_example(discard=True)
+            # OK: here we binary-search for a nasty
+            while not datetime_is_nasty(result):
+                data.start_example(DRAW_NAIVE_DATETIME_PART)
+                result = self.draw_naive_datetime_and_combine(data, tz, lo, hi)
+                data.stop_example(discard=True)
+                lo, hi = get_nasty_bounds(lo, result, hi)
+                assert lo <= hi
+            data.start_example(DRAW_NAIVE_DATETIME_PART)
+            result = self.draw_naive_datetime_and_combine(
+                data,
+                tz,
+                self.min_value,
+                self.max_value,
+                forced={k: getattr(result, k) for k in DATENAMES + TIMENAMES},
+            )
+            data.stop_example()
 
         # If we happened to end up with a disallowed imaginary time, reject it.
         if (not self.allow_imaginary) and datetime_does_not_exist(result):
             data.mark_invalid()
         return result
 
-    def draw_naive_datetime_and_combine(self, data, tz):
-        result = draw_capped_multipart(data, self.min_value, self.max_value)
+    def draw_naive_datetime_and_combine(
+        self, data, tz, min_value, max_value, forced=None
+    ):
+        result = draw_capped_multipart(data, min_value, max_value, forced=forced)
         try:
             return replace_tzinfo(dt.datetime(**result), timezone=tz)
         except (ValueError, OverflowError):
             msg = "Failed to draw a datetime between %r and %r with timezone from %r."
-            data.note_event(msg % (self.min_value, self.max_value, self.tz_strat))
+            data.note_event(msg % (min_value, max_value, self.tz_strat))
             data.mark_invalid()
 
 

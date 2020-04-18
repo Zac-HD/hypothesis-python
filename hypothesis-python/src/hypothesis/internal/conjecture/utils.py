@@ -56,7 +56,7 @@ SAMPLE_IN_SAMPLER_LABLE = calc_label_from_name("a sample() in Sampler")
 ONE_FROM_MANY_LABEL = calc_label_from_name("one more from many()")
 
 
-def integer_range(data, lower, upper, center=None):
+def integer_range(data, lower, upper, center=None, forced=None):
     assert lower <= upper
     if lower == upper:
         # Write a value even when this is trivial so that when a bound depends
@@ -74,8 +74,14 @@ def integer_range(data, lower, upper, center=None):
         above = False
     elif center == lower:
         above = True
+    elif forced is not None:
+        above = data.draw_bits(1, forced=int(forced >= center))
+        if above:
+            forced -= center
+        else:
+            forced += center
     else:
-        above = boolean(data)
+        above = data.draw_bits(1)
 
     if above:
         gap = upper - center
@@ -87,7 +93,7 @@ def integer_range(data, lower, upper, center=None):
     bits = bit_length(gap)
     probe = gap + 1
 
-    if bits > 24 and data.draw_bits(3):
+    if bits > 24 and data.draw_bits(3, forced=None if forced is None else 0):
         # For large ranges, we combine the uniform random distribution from draw_bits
         # with the weighting scheme used by WideRangeIntStrategy with moderate chance.
         # Cutoff at 2 ** 24 so unicode choice is uniform but 32bit distribution is not.
@@ -97,7 +103,7 @@ def integer_range(data, lower, upper, center=None):
 
     while probe > gap:
         data.start_example(INTEGER_RANGE_DRAW_LABEL)
-        probe = data.draw_bits(bits)
+        probe = data.draw_bits(bits, forced=forced)
         data.stop_example(discard=probe > gap)
 
     if above:
