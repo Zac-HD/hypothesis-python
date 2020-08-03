@@ -422,7 +422,7 @@ def arg_string(f, args, kwargs, reorder=True):
 
     bits = []
 
-    for a in argspec.args:
+    for a in argspec.args + list(argspec.kwonlyargs):
         if a in kwargs:
             bits.append("%s=%s" % (a, nicerepr(kwargs.pop(a))))
     if kwargs:

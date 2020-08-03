@@ -720,4 +720,4 @@ def test_repr_suggests_kwargs_for_deprecated_posargs():
     # their default value from the resulting repr - it's "how to get this strategy",
     # not "here's exactly what you passed in" (usually but not always the same).
     strat = st.floats(0, None, False, True)
-    assert repr(strat) == "floats(min_value=0, allow_infinity=True, allow_nan=False)"
+    assert repr(strat) == "floats(min_value=0, allow_nan=False, allow_infinity=True)"

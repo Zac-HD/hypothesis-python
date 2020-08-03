@@ -70,7 +70,9 @@ Strategies = st.recursive(
         ),
         st.builds(st.just, values),
         st.builds(st.sampled_from, st.lists(values, min_size=1)),
-        builds_ignoring_invalid(st.floats, st.floats(), st.floats()),
+        builds_ignoring_invalid(
+            st.floats, min_value=st.floats(), max_value=st.floats()
+        ),
     ),
     lambda x: st.one_of(
         builds_ignoring_invalid(st.lists, x, **size_strategies),
@@ -105,3 +107,15 @@ def test_repr_evals_to_thing_with_same_repr(strategy):
     via_eval = eval(r, strategy_globals)
     r2 = repr(via_eval)
     assert r == r2
+
+
+@given(Strategies)
+def test_repr_of_wrapped_strategy_is_valid_syntax_and_eval_fixpoint(strategy):
+    r = repr(getattr(strategy, "wrapped_strategy", strategy))
+    try:
+        s = eval(r, strategy_globals)
+    except NameError:
+        pass
+    else:
+        if "lambda" not in r:
+            assert r == repr(s)

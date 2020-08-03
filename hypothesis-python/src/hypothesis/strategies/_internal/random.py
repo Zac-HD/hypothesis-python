@@ -438,6 +438,14 @@ class RandomStrategy(SearchStrategy):
         self.__note_method_calls = note_method_calls
         self.__use_true_random = use_true_random
 
+    def __repr__(self):
+        parts = []
+        if self.__note_method_calls:
+            parts.append("note_method_calls=True")
+        if self.__use_true_random:
+            parts.append("use_true_random=True")
+        return "randoms({})".format(", ".join(parts))
+
     def do_draw(self, data):
         if self.__use_true_random:
             seed = data.draw_bits(64)
