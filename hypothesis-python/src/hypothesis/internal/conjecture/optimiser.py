@@ -14,7 +14,7 @@
 # END HEADER
 
 from hypothesis.internal.compat import int_from_bytes, int_to_bytes
-from hypothesis.internal.conjecture.data import Status
+from hypothesis.internal.conjecture.data import ConjectureData, Status
 from hypothesis.internal.conjecture.engine import BUFFER_SIZE, NO_SCORE
 from hypothesis.internal.conjecture.junkdrawer import find_integer
 
@@ -129,6 +129,8 @@ class Optimiser:
                         + self.current_data.buffer[block.end :]
                         + bytes(BUFFER_SIZE),
                     )
+                    if isinstance(attempt, ConjectureData):
+                        yield attempt
 
                     if self.consider_new_test_data(attempt):
                         return True
@@ -147,13 +149,12 @@ class Optimiser:
                         if ex.length == ex_attempt.length:
                             continue
                         replacement = attempt.buffer[ex_attempt.start : ex_attempt.end]
-                        if self.consider_new_test_data(
-                            self.engine.cached_test_function(
-                                prefix
-                                + replacement
-                                + self.current_data.buffer[ex.end :]
-                            )
-                        ):
+                        newdata = self.engine.cached_test_function(
+                            prefix + replacement + self.current_data.buffer[ex.end :]
+                        )
+                        if isinstance(newdata, ConjectureData):
+                            yield newdata
+                        if self.consider_new_test_data(newdata):
                             return True
                 return False
 

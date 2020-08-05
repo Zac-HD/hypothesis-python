@@ -626,6 +626,12 @@ class ConjectureRunner:
 
         self.debug("Generating new examples")
 
+        for _ in self.iter_generate_new_examples():
+            pass
+
+    def iter_generate_new_examples(self):
+        # Generate new examples for the wrapped test function, yielding control
+        # between each test invocation to allow for interleaved execution.
         assert self.should_generate_more()
         zero_data = self.cached_test_function(bytes(BUFFER_SIZE))
         if zero_data.status > Status.OVERRUN:
@@ -648,6 +654,7 @@ class ConjectureRunner:
                 "one_of(none(), some_complex_strategy)?",
                 HealthCheck.large_base_example,
             )
+        yield zero_data
 
         self.health_check_state = HealthCheckState()
 
@@ -687,8 +694,10 @@ class ConjectureRunner:
         # have very different sizes for different prefixes.
         small_example_cap = clamp(10, self.settings.max_examples // 10, 50)
 
-        optimise_at = max(self.settings.max_examples // 2, small_example_cap + 1)
-        ran_optimisations = False
+        optimise_at = max(
+            min(1000, self.settings.max_examples // 2), small_example_cap + 1
+        )
+        best_targets = {}
 
         while self.should_generate_more():
             prefix = self.generate_novel_prefix()
@@ -702,6 +711,7 @@ class ConjectureRunner:
                 minimal_example = self.cached_test_function(
                     prefix + bytes(BUFFER_SIZE - len(prefix))
                 )
+                yield minimal_example
 
                 if minimal_example.status < Status.VALID:
                     consecutive_zero_extend_is_invalid += 1
@@ -747,8 +757,9 @@ class ConjectureRunner:
             data = self.new_conjecture_data(prefix=prefix, max_length=max_length)
 
             self.test_function(data)
+            yield data
 
-            self.generate_mutations_from(data)
+            yield from self.generate_mutations_from(data)
 
             # Although the optimisations are logically a distinct phase, we
             # actually normally run them as part of example generation. The
@@ -756,12 +767,17 @@ class ConjectureRunner:
             # actually exhausts our budget: It might finish running and we
             # discover that actually we still could run a bunch more test cases
             # if we want.
-            if (
-                self.valid_examples >= max(small_example_cap, optimise_at)
-                and not ran_optimisations
-            ):
-                ran_optimisations = True
-                self.optimise_targets()
+            if self.valid_examples >= max(small_example_cap, optimise_at):
+                print("could optimise", self.best_observed_targets)
+                if any(
+                    best_targets.get(k, float("-inf")) < v
+                    for k, v in self.best_observed_targets.items()
+                ):
+                    optimise_at += self.valid_examples
+                    print("optimising")
+                    self.optimise_targets()
+                    best_targets = self.best_observed_targets.copy()
+                return
 
     def generate_mutations_from(self, data):
         # A thing that is often useful but rarely happens by accident is
@@ -830,6 +846,7 @@ class ConjectureRunner:
                         error_on_discard=True,
                         extend=BUFFER_SIZE,
                     )
+                    yield new_data
                 except ContainsDiscard:
                     failed_mutations += 1
                     continue
@@ -870,7 +887,7 @@ class ConjectureRunner:
                 optimiser = Optimiser(
                     self, data, target, max_improvements=max_improvements
                 )
-                optimiser.run()
+                yield from optimiser.run()
                 if optimiser.improvements > 0:
                     any_improvements = True
 
