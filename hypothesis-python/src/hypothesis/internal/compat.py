@@ -124,6 +124,32 @@ if sys.version_info[:2] < (3, 6):
 
 else:
 
+    import functools
+    import operator
+    import typeshed_client
+
+    @functools.lru_cache(maxsize=None)
+    def _import_stub_module(modname):
+        try:
+            # Find and load the stubs.  Note that this may fail for a variety of reasons,
+            # including different syntax for .pyi files (bare forward-refs are allowed)
+            path = typeshed_client.get_stub_file(modname)
+            # With thanks to https://stackoverflow.com/a/43602557/9297601
+            #
+            # On the other hand importing the module is clearly the WRONG WAY to get
+            # type hints out of a stub file, and we should really do something more
+            # intelligent (i.e. copy the relevant parts of mypy or pyre).
+            # This works occasionally though, and I intend to leave it in a branch
+            # as notes rather than merging it, so...
+            spec = importlib.util.spec_from_loader(
+                modname, importlib.machinery.SourceFileLoader(modname, str(path)),
+            )
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+        except Exception:
+            return None
+
     def get_type_hints(thing):
         """Like the typing version, but tries harder and never errors.
 
@@ -139,6 +165,17 @@ else:
             hints = typing.get_type_hints(thing)
         except (TypeError, NameError):
             hints = {}
+        if not hints:
+            # Here, we do terrible things in the name of user experience: attempt to
+            # find and import the corresponding .pyi "stub file" to get type hints
+            # for non-type-annotated code.  This is mostly the standard library, or
+            # a few popular packages, and thus most useful for the ghostwriter.
+            try:
+                mod = _import_stub_module(thing.__module__)
+                stub_thing = operator.attrgetter(thing.__qualname__)(mod)
+                hints = typing.get_type_hints(stub_thing)
+            except Exception:
+                pass
         if hints or not inspect.isclass(thing):
             return hints
         try:
