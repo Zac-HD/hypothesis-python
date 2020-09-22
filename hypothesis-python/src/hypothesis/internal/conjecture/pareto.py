@@ -71,9 +71,6 @@ def dominance(left, right):
     if left.status < right.status:
         return DominanceRelation.NO_DOMINANCE
 
-    if not right.tags.issubset(left.tags):
-        return DominanceRelation.NO_DOMINANCE
-
     # Things that are interesting for different reasons are incomparable in
     # the dominance relationship.
     if (
