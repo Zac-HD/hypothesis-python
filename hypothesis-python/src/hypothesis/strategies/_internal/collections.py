@@ -44,11 +44,7 @@ class TupleStrategy(SearchStrategy):
         )
 
     def __repr__(self):
-        if len(self.element_strategies) == 1:
-            tuple_string = "%s," % (repr(self.element_strategies[0]),)
-        else:
-            tuple_string = ", ".join(map(repr, self.element_strategies))
-        return "TupleStrategy((%s))" % (tuple_string,)
+        return "tuples({})".format(", ".join(map(repr, self.element_strategies)))
 
     def calc_has_reusable_values(self, recur):
         return all(recur(e) for e in self.element_strategies)
@@ -148,11 +144,10 @@ class UniqueListStrategy(ListStrategy):
         # We construct a filtered strategy here rather than using a check-and-reject
         # approach because some strategies have special logic for generation under a
         # filter, and FilteredStrategy can consolidate multiple filters.
-        filtered = self.element_strategy.filter(
-            lambda val: all(
-                key(val) not in seen for (key, seen) in zip(self.keys, seen_sets)
-            )
-        )
+        def can_add_element_to_unique_list(x):
+            return all(key(x) not in seen for key, seen in zip(self.keys, seen_sets))
+
+        filtered = self.element_strategy.filter(can_add_element_to_unique_list)
         while elements.more():
             value = filtered.filtered_strategy.do_filtered_draw(
                 data=data, filter_strategy=filtered
