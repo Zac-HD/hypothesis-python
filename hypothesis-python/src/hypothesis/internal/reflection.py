@@ -82,8 +82,8 @@ def function_digest(function):
     except AttributeError:
         pass
     try:
-        hasher.update(str_to_bytes(repr(inspect.getfullargspec(function))))
-    except TypeError:
+        hasher.update(str_to_bytes(repr(inspect.signature(function))))
+    except (TypeError, ValueError):
         pass
     try:
         hasher.update(function._hypothesis_internal_add_digest)
