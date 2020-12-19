@@ -92,6 +92,13 @@ def function_digest(function):
     return hasher.digest()
 
 
+def arg_is_required(param):
+    return param.default is inspect.Parameter.empty and param.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )
+
+
 def required_args(target, args=(), kwargs=()):
     """Return a set of names of required args to target that were not supplied
     in args or kwargs.
@@ -105,30 +112,16 @@ def required_args(target, args=(), kwargs=()):
     if inspect.isclass(target) and is_typed_named_tuple(target):
         provided = set(kwargs) | set(target._fields[: len(args)])
         return set(target._fields) - provided
-    # Then we try to do the right thing with inspect.getfullargspec
-    # Note that for classes we inspect the __init__ method, *unless* the class
-    # has an explicit __signature__ attribute.  This allows us to support
-    # runtime-generated constraints on **kwargs, as for e.g. Pydantic models.
+    # Then we try to do the right thing with inspect.signature
     try:
-        spec = inspect.getfullargspec(
-            getattr(target, "__init__", target)
-            if inspect.isclass(target) and not hasattr(target, "__signature__")
-            else target
-        )
-    except TypeError:  # pragma: no cover
-        return None
-    # self appears in the argspec of __init__ and bound methods, but it's an
-    # error to explicitly supply it - so we might skip the first argument.
-    skip_self = int(inspect.isclass(target) or inspect.ismethod(target))
-    # Start with the args that were not supplied and all kwonly arguments,
-    # then remove all positional arguments with default values, and finally
-    # remove kwonly defaults and any supplied keyword arguments
-    return (
-        set(spec.args[skip_self + len(args) :] + spec.kwonlyargs)
-        - set(spec.args[len(spec.args) - len(spec.defaults or ()) :])
-        - set(spec.kwonlydefaults or ())
-        - set(kwargs)
-    )
+        sig = inspect.signature(target)
+    except (ValueError, TypeError):
+        return set()
+    return {
+        name
+        for name, param in list(sig.parameters.items())[len(args) :]
+        if arg_is_required(param) and name not in kwargs
+    }
 
 
 def convert_keyword_arguments(function, args, kwargs):

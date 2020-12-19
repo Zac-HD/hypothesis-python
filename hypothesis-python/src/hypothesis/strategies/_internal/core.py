@@ -1295,7 +1295,7 @@ def builds(
             "infer was passed as a positional argument to "
             "builds(), but is only allowed as a keyword arg"
         )
-    required = required_args(target, args, kwargs) or set()
+    required = required_args(target, args, kwargs)
     to_infer = {k for k, v in kwargs.items() if v is infer}
     if required or to_infer:
         if isinstance(target, type) and attr.has(target):

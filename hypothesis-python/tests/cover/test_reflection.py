@@ -16,13 +16,13 @@
 import sys
 from copy import deepcopy
 from datetime import time
-from functools import partial
+from functools import partial, wraps
 from inspect import FullArgSpec, getfullargspec
 from unittest.mock import MagicMock, Mock, NonCallableMagicMock, NonCallableMock
 
 import pytest
 
-from hypothesis import strategies as st
+from hypothesis import given, strategies as st
 from hypothesis.internal import reflection
 from hypothesis.internal.reflection import (
     arg_string,
@@ -721,3 +721,23 @@ def test_repr_suggests_kwargs_for_deprecated_posargs():
     # not "here's exactly what you passed in" (usually but not always the same).
     strat = st.floats(0, None, False, True)
     assert repr(strat) == "floats(min_value=0, allow_infinity=True, allow_nan=False)"
+
+
+def logged(f):
+    @wraps(f)
+    def wrapper(*a, **kw):
+        print("I was called")
+        return f(*a, **kw)
+
+    return wrapper
+
+
+class Foo:
+    @logged
+    def __init__(self, i: int):
+        pass
+
+
+@given(st.builds(Foo))
+def test_issue_2495_regression(foo):
+    """See https://github.com/HypothesisWorks/hypothesis/issues/2495 """
