@@ -24,7 +24,7 @@ import typing
 from decimal import Context, Decimal, localcontext
 from fractions import Fraction
 from functools import reduce
-from inspect import Parameter, getfullargspec, isabstract, isclass, signature
+from inspect import Parameter, isabstract, isclass, signature
 from typing import (
     Any,
     AnyStr,
@@ -1847,25 +1847,25 @@ def composite(f: Callable[..., Ex]) -> Callable[..., SearchStrategy[Ex]]:
     else:
         special_method = None
 
-    argspec = getfullargspec(f)
+    sig = signature(f)
+    params = list(sig.parameters.values())
 
-    if argspec.defaults is not None and len(argspec.defaults) == len(argspec.args):
-        raise InvalidArgument("A default value for initial argument will never be used")
-    if len(argspec.args) == 0 and not argspec.varargs:
+    if not params or params[0].kind not in (
+        Parameter.POSITIONAL_ONLY,
+        Parameter.POSITIONAL_OR_KEYWORD,
+    ):
         raise InvalidArgument(
             "Functions wrapped with composite must take at least one "
-            "positional argument."
+            "positional argument, conventionally named `draw`."
+        )
+    draw = params.pop(0)
+    if draw.default is not Parameter.empty:
+        raise InvalidArgument(
+            f"A default value for initial argument {draw} will never be used"
         )
 
-    annots = {
-        k: v
-        for k, v in argspec.annotations.items()
-        if k in (argspec.args + argspec.kwonlyargs + ["return"])
-    }
-    new_argspec = argspec._replace(args=argspec.args[1:], annotations=annots)
-
     @defines_strategy()
-    @define_function_signature(f.__name__, f.__doc__, new_argspec)
+    @define_function_signature(f.__name__, f.__doc__, sig.replace(parameters=params))
     def accept(*args, **kwargs):
         return CompositeStrategy(f, args, kwargs)
 

@@ -221,7 +221,7 @@ class WithRunner(MappedSearchStrategy):
         return "WithRunner(%r, runner=%r)" % (self.mapped_strategy, self.runner)
 
 
-def is_invalid_test(name, original_argspec, given_arguments, given_kwargs):
+def is_invalid_test(name, original_sig, given_arguments, given_kwargs):
     """Check the arguments to ``@given`` for basic usage constraints.
 
     Most errors are not raised immediately; instead we return a dummy test
@@ -240,20 +240,29 @@ def is_invalid_test(name, original_argspec, given_arguments, given_kwargs):
     if not (given_arguments or given_kwargs):
         return invalid("given must be called with at least one argument")
 
+    P = inspect.Parameter
+    params = original_sig.parameters.values()
+
     if given_arguments and any(
-        [original_argspec.varargs, original_argspec.varkw, original_argspec.kwonlyargs]
+        p.kind in (P.VAR_POSITIONAL, P.VAR_KEYWORD, P.KEYWORD_ONLY) for p in params
     ):
         return invalid(
             "positional arguments to @given are not supported with varargs, "
             "varkeywords, or keyword-only arguments"
         )
 
-    if len(given_arguments) > len(original_argspec.args):
+    if any(p.kind == P.POSITIONAL_ONLY for p in params):
+        # We may want to lift this restriction in future
+        return invalid("@given does not yet support positional-only arguments")
+
+    num_posargs = sum(
+        p.kind in (P.POSITIONAL_ONLY, P.POSITIONAL_OR_KEYWORD) for p in params
+    )
+    if len(given_arguments) > num_posargs:
         args = tuple(given_arguments)
         return invalid(
-            "Too many positional arguments for %s() were passed to @given "
-            "- expected at most %d arguments, but got %d %r"
-            % (name, len(original_argspec.args), len(args), args)
+            f"Too many positional arguments for {name}() were passed to @given - "
+            f"expected at most {num_posargs} arguments, but got {len(args)} {args!r}"
         )
 
     if infer in given_arguments:
@@ -264,26 +273,17 @@ def is_invalid_test(name, original_argspec, given_arguments, given_kwargs):
 
     if given_arguments and given_kwargs:
         return invalid("cannot mix positional and keyword arguments to @given")
-    extra_kwargs = [
-        k
-        for k in given_kwargs
-        if k not in original_argspec.args + original_argspec.kwonlyargs
-    ]
-    if extra_kwargs and not original_argspec.varkw:
+
+    extra_kwargs = [k for k in given_kwargs if k not in original_sig.parameters]
+    if extra_kwargs and not any(p.kind == P.VAR_KEYWORD for p in params):
         arg = extra_kwargs[0]
         return invalid(
             "%s() got an unexpected keyword argument %r, from `%s=%r` in @given"
             % (name, arg, arg, given_kwargs[arg])
         )
-    if original_argspec.defaults or original_argspec.kwonlydefaults:
+
+    if any(p.default is not P.empty for p in params):
         return invalid("Cannot apply @given to a function with defaults.")
-    missing = [repr(kw) for kw in original_argspec.kwonlyargs if kw not in given_kwargs]
-    if missing:
-        return invalid(
-            "Missing required kwarg{}: {}".format(
-                "s" if len(missing) > 1 else "", ", ".join(missing)
-            )
-        )
 
 
 class ArtificialDataForExample(ConjectureData):
@@ -477,21 +477,6 @@ def failure_exceptions_to_catch():
     if "_pytest" in sys.modules:  # pragma: no branch
         exceptions.append(sys.modules["_pytest"].outcomes.Failed)
     return tuple(exceptions)
-
-
-def new_given_argspec(original_argspec, given_kwargs):
-    """Make an updated argspec for the wrapped test."""
-    new_args = [a for a in original_argspec.args if a not in given_kwargs]
-    new_kwonlyargs = [a for a in original_argspec.kwonlyargs if a not in given_kwargs]
-    annots = {
-        k: v
-        for k, v in original_argspec.annotations.items()
-        if k in new_args + new_kwonlyargs
-    }
-    annots["return"] = None
-    return original_argspec._replace(
-        args=new_args, kwonlyargs=new_kwonlyargs, annotations=annots
-    )
 
 
 class StateForActualGivenExecution:
@@ -950,10 +935,10 @@ def given(
         given_arguments = tuple(_given_arguments)
         given_kwargs = dict(_given_kwargs)
 
-        original_argspec = getfullargspec(test)
+        original_sig = signature(test)
 
         check_invalid = is_invalid_test(
-            test.__name__, original_argspec, given_arguments, given_kwargs
+            test.__name__, original_sig, given_arguments, given_kwargs
         )
 
         # If the argument check found problems, return a dummy test function
@@ -966,13 +951,22 @@ def given(
         if given_arguments:
             assert not given_kwargs
             for name, strategy in zip(
-                reversed(original_argspec.args), reversed(given_arguments)
+                reversed(getfullargspec(test).args), reversed(given_arguments)
             ):
                 given_kwargs[name] = strategy
         # These have been converted, so delete them to prevent accidental use.
         del given_arguments
 
-        argspec = new_given_argspec(original_argspec, given_kwargs)
+        # Calculate the new signature, with parameters supplied by @given removed
+        # and the None-only return type annotated.
+        new_sig = original_sig.replace(
+            parameters=[
+                param
+                for param in original_sig.parameters.values()
+                if param.name not in given_kwargs
+            ],
+            return_annotation=None,
+        )
 
         # Use type information to convert "infer" arguments into appropriate strategies.
         if infer in given_kwargs.values():
@@ -983,7 +977,7 @@ def given(
                 # not when it's decorated.
 
                 @impersonate(test)
-                @define_function_signature(test.__name__, test.__doc__, argspec)
+                @define_function_signature(test.__name__, test.__doc__, new_sig)
                 def wrapped_test(*arguments, **kwargs):
                     __tracebackhide__ = True
                     raise InvalidArgument(
@@ -996,7 +990,7 @@ def given(
             given_kwargs[name] = st.from_type(hints[name])
 
         @impersonate(test)
-        @define_function_signature(test.__name__, test.__doc__, argspec)
+        @define_function_signature(test.__name__, test.__doc__, new_sig)
         def wrapped_test(*arguments, **kwargs):
             # Tell pytest to omit the body of this function from tracebacks
             __tracebackhide__ = True

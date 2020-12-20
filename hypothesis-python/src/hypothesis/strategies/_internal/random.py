@@ -140,11 +140,9 @@ def define_copy_method(name):
         self._hypothesis_log_random(name, kwargs, result)
         return result
 
-    spec = inspect.getfullargspec(STUBS.get(name, target))
-
-    result = define_function_signature(target.__name__, target.__doc__, spec)(
-        implementation
-    )
+    result = define_function_signature(
+        target.__name__, target.__doc__, inspect.signature(STUBS.get(name, target))
+    )(implementation)
 
     result.__module__ = __name__
     result.__qualname__ = "HypothesisRandom." + result.__name__
