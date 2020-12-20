@@ -465,10 +465,10 @@ def source_exec_as_module(source):
 COPY_ARGSPEC_SCRIPT = """
 from hypothesis.utils.conventions import not_set
 
-def accept(%(funcname)s):
-    def %(name)s(%(argspec)s):
-        return %(funcname)s(%(invocation)s)
-    return %(name)s
+def accept({funcname}):
+    def {name}({argspec}):
+        return {funcname}({invocation})
+    return {name}
 """.lstrip()
 
 
@@ -533,13 +533,12 @@ def define_function_signature(name, docstring, argspec):
                 break
 
         base_accept = source_exec_as_module(
-            COPY_ARGSPEC_SCRIPT
-            % {
-                "name": name,
-                "funcname": funcname,
-                "argspec": ", ".join(parts),
-                "invocation": ", ".join(invocation_parts),
-            }
+            COPY_ARGSPEC_SCRIPT.format(
+                name=name,
+                funcname=funcname,
+                argspec=", ".join(parts),
+                invocation=", ".join(invocation_parts),
+            )
         ).accept
 
         result = base_accept(f)
