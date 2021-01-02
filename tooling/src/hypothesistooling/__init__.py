@@ -112,19 +112,8 @@ def create_tag(tagname):
 
 def push_tag(tagname):
     assert_can_release()
-    subprocess.check_call(
-        [
-            "git",
-            "push",
-            "origin",
-            "HEAD:master",
-            "&&",
-            "git",
-            "push",
-            "origin",
-            shlex.quote(tagname),
-        ]
-    )
+    subprocess.check_call(["git", "push", "origin", shlex.quote(tagname)])
+    subprocess.check_call(["git", "push", "origin", "HEAD:master"])
 
 
 def assert_can_release():
