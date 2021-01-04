@@ -57,6 +57,24 @@ class TestFixComplexMinMagnitude(CodemodTest):
         self.assertCodemod(before=before, after=before.replace("None", "0"))
 
 
+class TestFixIpAddressStringStrategies(CodemodTest):
+    TRANSFORM = codemods.HypothesisFixIpAddressStringStrategies
+
+    def test_substitution(self) -> None:
+        before = """
+            from hypothesis.provisional import ip4_addr_strings, ip6_addr_strings as i6
+
+            ip4_addr_strings()
+            i6()
+        """
+        # TODO: this should add `from hypothesis import strategies as st`
+        after = """
+            st.ip_addresses(v=4).map(str)
+            st.ip_addresses(v=6).map(str)
+        """
+        self.assertCodemod(before=before, after=after)
+
+
 class TestFixPositionalKeywonlyArgs(CodemodTest):
     TRANSFORM = codemods.HypothesisFixPositionalKeywonlyArgs
 

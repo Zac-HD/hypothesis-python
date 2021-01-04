@@ -72,6 +72,7 @@ def refactor(code: str) -> str:
     transforms: List[VisitorBasedCodemodCommand] = [
         HypothesisFixPositionalKeywonlyArgs(context),
         HypothesisFixComplexMinMagnitude(context),
+        HypothesisFixIpAddressStringStrategies(context),
     ]
     for transform in transforms:
         mod = transform.transform_module(mod)
@@ -111,6 +112,48 @@ class HypothesisFixComplexMinMagnitude(VisitorBasedCodemodCommand):
         ):
             return updated_node.with_changes(value=cst.Integer("0"))
         return updated_node
+
+
+class HypothesisFixIpAddressStringStrategies(VisitorBasedCodemodCommand):
+    """Replace the provisional IP address strings strategy with the supported version::
+
+        provisional.ip4_addr_strings() -> st.ip_addresses(v=4)
+
+    The only tricky part is ensuring that changed imports are handled correctly.
+    """
+
+    DESCRIPTION = "Update from the provisional IP address strings strategy."
+    METADATA_DEPENDENCIES = (cst.metadata.QualifiedNameProvider,)
+
+    def leave_Call(self, original_node, updated_node):
+        # TODO: either `from hypothesis import strategies as st` if it's not
+        # already in scope, or determine and use the existing name if it is.
+        st_name = "st"
+        for v in (4, 6):
+            matcher = match_qualname(f"hypothesis.provisional.ip{v}_addr_strings")
+            if m.matches(updated_node, m.Call(metadata=matcher)):
+                return cst.parse_expression(f"{st_name}.ip_addresses(v={v}).map(str)")
+        return updated_node
+
+    def leave_import_alike(self, original_node, updated_node):
+        # Adapted from https://libcst.readthedocs.io/en/latest/scope_tutorial.html
+        print(updated_node)
+        names_to_keep = [
+            alias.with_changes(comma=cst.MaybeSentinel.DEFAULT)
+            for alias in updated_node.names
+            if alias.name.value not in ("ip4_addr_strings", "ip6_addr_strings")
+        ]
+        if len(names_to_keep) == len(updated_node.names):
+            return updated_node
+        if len(names_to_keep) == 0:
+            return cst.RemoveFromParent()
+        return updated_node.with_changes(names=names_to_keep)
+
+    def leave_Import(self, original_node, updated_node):
+        return self.leave_import_alike(original_node, updated_node)
+
+    def leave_ImportFrom(self, original_node, updated_node):
+        return self.leave_import_alike(original_node, updated_node)
 
 
 class HypothesisFixPositionalKeywonlyArgs(VisitorBasedCodemodCommand):
