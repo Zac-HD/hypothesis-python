@@ -20,13 +20,13 @@ Suppose we've got the following type:
 
 .. code:: python
 
-    class Node(object):
+    class Node:
         def __init__(self, label, value):
             self.label = label
             self.value = tuple(value)
 
         def __repr__(self):
-            return "Node(%r, %r)" % (self.label, self.value)
+            return f"Node({self.label!r}, {self.value!r})"
 
         def sorts_before(self, other):
             if len(self.value) >= len(other.value):
@@ -52,7 +52,7 @@ define the following code:
 
 
     @total_ordering
-    class TopoKey(object):
+    class TopoKey:
         def __init__(self, node):
             self.value = node
 
@@ -94,7 +94,6 @@ First we need to define a strategy for Node:
 
 .. code:: python
 
-  from hypothesis import settings, strategies
   import hypothesis.strategies as s
 
   NodeStrategy = s.builds(Node, s.integers(), s.lists(s.booleans(), max_size=10))
@@ -254,9 +253,11 @@ Without further ado, here is the code:
 
 .. code:: python
 
-    from hypothesis import given, assume
-    from hypothesis.strategies import lists, permutations
     from collections import Counter
+
+    from hypothesis import given
+    from hypothesis.strategies import lists, permutations
+
 
     # We need at least three candidates and at least three voters to have a
     # paradox; anything less can only lead to victories or at worst ties.
@@ -318,15 +319,16 @@ The :pypi:`swagger-conformance` package provides an excellent example of this!
 
 .. code:: python
 
-    import unittest
-    from hypothesis import given, assume, settings, strategies as st
-    from collections import namedtuple
-    import requests
+    import math
     import os
     import random
     import time
-    import math
+    import unittest
+    from collections import namedtuple
 
+    import requests
+
+    from hypothesis import assume, given, strategies as st
 
     Goal = namedtuple("Goal", ("slug",))
 
