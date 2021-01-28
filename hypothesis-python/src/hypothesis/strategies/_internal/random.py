@@ -61,8 +61,7 @@ class HypothesisRandom(Random):
                 self,
                 method,
                 ", ".join(
-                    list(map(repr, args))
-                    + ["%s=%r" % (k, v) for k, v in kwargs.items()]
+                    list(map(repr, args)) + [f"{k}={v!r}" for k, v in kwargs.items()]
                 ),
                 result,
             )
@@ -419,7 +418,7 @@ class TrueRandom(HypothesisRandom):
         return result
 
     def __repr__(self):
-        return "Random(%r)" % (self.__seed,)
+        return f"Random({self.__seed!r})"
 
     def seed(self, seed):
         self.__random.seed(seed)

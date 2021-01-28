@@ -161,10 +161,8 @@ class FixedBoundedFloatStrategy(SearchStrategy):
         self.width = width
 
     def __repr__(self):
-        return "FixedBoundedFloatStrategy(%s, %s, %s)" % (
-            self.lower_bound,
-            self.upper_bound,
-            self.width,
+        return "FixedBoundedFloatStrategy({}, {}, {})".format(
+            self.lower_bound, self.upper_bound, self.width
         )
 
     def do_draw(self, data):
