@@ -35,7 +35,7 @@ class DeferredStrategy(SearchStrategy):
             if not inspect.isfunction(self.__definition):
                 raise InvalidArgument(
                     f"Expected definition to be a function but got {self.__definition!r} "
-                    "of type {} instead.".format(type(self.__definition).__name__)
+                    f"of type {type(self.__definition).__name__} instead."
                 )
             result = self.__definition()
             if result is self:

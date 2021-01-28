@@ -105,14 +105,11 @@ else:
         verbosity_name = config.getoption(VERBOSITY_OPTION)
         if verbosity_name:
             verbosity_value = Verbosity[verbosity_name]
-            profile_name = "{}-with-{}-verbosity".format(
-                settings._current_profile,
-                verbosity_name,
-            )
+            name = f"{settings._current_profile}-with-{verbosity_name}-verbosity"
             # register_profile creates a new profile, exactly like the current one,
             # with the extra values given (in this case 'verbosity')
-            settings.register_profile(profile_name, verbosity=verbosity_value)
-            settings.load_profile(profile_name)
+            settings.register_profile(name, verbosity=verbosity_value)
+            settings.load_profile(name)
         seed = config.getoption(SEED_OPTION)
         if seed is not None:
             try:
