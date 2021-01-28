@@ -174,7 +174,7 @@ def _for_form_ip(field):
         return st.ip_addresses(v=4).map(str)
     if validate_ipv6_address in field.default_validators:
         return _ipv6_strings
-    raise ResolutionFailed("No IP version validator on field=%r" % field)
+    raise ResolutionFailed(f"No IP version validator on field={field!r}")
 
 
 @register_for(dm.DecimalField)
@@ -310,7 +310,7 @@ def from_field(field: F) -> st.SearchStrategy[Union[F, None]]:
         if type(field) not in _global_field_lookup:
             if getattr(field, "null", False):
                 return st.none()
-            raise ResolutionFailed("Could not infer a strategy for %r", (field,))
+            raise ResolutionFailed(f"Could not infer a strategy for {field!r}")
         strategy = _global_field_lookup[type(field)]  # type: ignore
         if not isinstance(strategy, st.SearchStrategy):
             strategy = strategy(field)

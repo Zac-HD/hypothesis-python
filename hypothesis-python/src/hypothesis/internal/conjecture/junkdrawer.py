@@ -202,7 +202,7 @@ class LazySequenceCopy:
     def __check_index(self, i):
         n = len(self)
         if i < -n or i >= n:
-            raise IndexError("Index %d out of range [0, %d)" % (i, n))
+            raise IndexError(f"Index {i} out of range [0, {n})")
         if i < 0:
             i += n
         assert 0 <= i < n

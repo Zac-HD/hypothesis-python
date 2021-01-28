@@ -414,9 +414,9 @@ standard_tox_task("nose")
 standard_tox_task("pytest43")
 
 for n in [22, 30, 31]:
-    standard_tox_task("django%d" % (n,))
+    standard_tox_task(f"django{n}")
 for n in [25, 100, 111]:
-    standard_tox_task("pandas%d" % (n,))
+    standard_tox_task(f"pandas{n}")
 
 standard_tox_task("coverage")
 standard_tox_task("conjecture-coverage")

@@ -502,11 +502,11 @@ def data_frames(
     column_names = set()  # type: Set[str]
 
     for i, c in enumerate(cols):
-        check_type(column, c, "columns[%d]" % (i,))
+        check_type(column, c, f"columns[{i}]")
 
         c = copy(c)
         if c.name is None:
-            label = "columns[%d]" % (i,)
+            label = f"columns[{i}]"
             c.name = i
         else:
             label = c.name

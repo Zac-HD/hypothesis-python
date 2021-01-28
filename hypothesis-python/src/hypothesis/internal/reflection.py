@@ -520,7 +520,7 @@ def define_function_signature(name, docstring, argspec):
             parts.append("**" + argspec.varkw)
             invocation_parts.append("**" + argspec.varkw)
 
-        candidate_names = ["f"] + ["f_%d" % (i,) for i in range(1, len(used_names) + 2)]
+        candidate_names = ["f"] + [f"f_{i}" for i in range(1, len(used_names) + 2)]
 
         for funcname in candidate_names:  # pragma: no branch
             if funcname not in used_names:

@@ -94,7 +94,7 @@ else:
             profile = settings._current_profile
         settings_str = settings.get_profile(profile).show_changed()
         if settings_str != "":
-            settings_str = " -> %s" % (settings_str)
+            settings_str = f" -> {settings_str}"
         return f"hypothesis profile {profile!r}{settings_str}"
 
     def pytest_configure(config):
